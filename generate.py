@@ -48,7 +48,8 @@ def generate(
         model = PeftModel.from_pretrained(model, adapter_model)
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
-    tokenizer.pad_token = 0
+    # 指定填充用结束标记
+    tokenizer.pad_token = tokenizer.eos_token
 
     # 生成配置
     generation_config = model.generation_config
@@ -60,11 +61,16 @@ def generate(
     generation_config.eos_token_id = 0
 
     def generate_response(question: str) -> str:
+    #     prompt = f"""
+    # answer the question after <human>, as truthfully as possible, if you are not sure, please say "-2".
+    # <human>: {question}
+    # <assistant>:
+    # """.strip()
         prompt = f"""
-    answer the question after <human>, as truthfully as possible, if you are not sure, please say "I am not sure".
-    <human>: {question}
-    <assistant>:
-    """.strip()
+What is the sentiment after <news>?
+<news>: {question}
+<sentiment>:
+""".strip()
         encoding = tokenizer(prompt, return_tensors="pt").to(device)
         with torch.inference_mode():
             outputs = model.generate(
@@ -74,11 +80,15 @@ def generate(
             )
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        assistant_start = "<assistant>:"
+        response = response.split("<EOS>")[0]
+        assistant_start = "<sentiment>:"
         response_start = response.find(assistant_start)
         return response[response_start + len(assistant_start):].strip()
 
-    print(generate_response("How can I create an account?"))
+    question = input('Input news. Input exit to exit:')
+    while question != 'e':
+        print(generate_response(question))
+        question = input("Input news. Input exit to exit:")
 
 
 if __name__ == '__main__':

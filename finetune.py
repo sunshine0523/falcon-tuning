@@ -141,13 +141,19 @@ def train(
         model_name,
         trust_remote_code=True
     )
-    tokenizer.pad_token = 0
+    # 指定填充用结束标记
+    tokenizer.pad_token = tokenizer.eos_token
 
     def generate_prompt(data_point):
         return f"""
-        <human>: {data_point["question"]}
-        <assistant>: {data_point["answer"]}
-        """.strip()
+What is the sentiment of this news?
+<news>: {data_point["news_title"]}
+<sentiment>: {data_point["emotion"]} <EOS>
+""".strip()
+        # return f"""
+        # <human>: {data_point["question"]}
+        # <assistant>: {data_point["answer"]}
+        # """.strip()
 
     def generate_and_tokenize_prompt(data_point):
         full_prompt = generate_prompt(data_point)

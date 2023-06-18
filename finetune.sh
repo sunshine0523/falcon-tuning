@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0 python finetune.py \
   --model_name '../../models/falcon-7b' \
-  --data_path './dataset.json' \
+  --data_path './news_emotion_1k.json' \
   --output_dir './output' \
   --load_4bit \
   --batch_size 16 \
