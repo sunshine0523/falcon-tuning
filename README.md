@@ -1,7 +1,13 @@
 # FineTuning Falcon-7B
 
-# Credits   
+## Credits
 
-[QLoRA-Finetune-Falcon7B](https://github.com/yueming-zhang/QLoRA-Finetune-Falcon7B/blob/main/fintune-falcon/)
+[QLoRA](https://arxiv.org/pdf/2305.14314.pdf)
 
-[LLM-Adapters](https://github.com/AGI-Edgerunners/LLM-Adapters)
+[DeepSpeed](https://github.com/microsoft/DeepSpeed)
+
+[BitsAndBytes](https://github.com/TimDettmers/bitsandbytes)
+
+[Transformers](https://github.com/huggingface/transformers)
+
+[PEFT](https://github.com/huggingface/peft)

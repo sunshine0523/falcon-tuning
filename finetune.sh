@@ -1,5 +1,5 @@
-CUDA_VISIBLE_DEVICES=0 python finetune.py \
-  --model_name '../../models/falcon-7b' \
+python finetune.py \
+  --model_name '/home/lib/models/falcon-7b' \
   --data_path './news_emotion_1k.json' \
   --output_dir './output' \
   --load_4bit \
@@ -7,5 +7,7 @@ CUDA_VISIBLE_DEVICES=0 python finetune.py \
   --micro_batch_size 4 \
   --num_epochs 50 \
   --save_step 1 \
+  --report ['tensorboard'] \
   --learning_rate 3e-4 \
-  --adapter_name 'lora'
+  --use_lora \
+  --lora_target_modules ['query_key_value']

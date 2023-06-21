@@ -1,0 +1,11 @@
+python finetune_v2.py \
+  --model_name_or_path '/home/lib/models/falcon-7b' \
+  --dataset './news_emotion_1k.json' \
+  --output_dir './output' \
+  --use_lora \
+  --load_bit 4 \
+  --learning_rate 3e-4 \
+  --per_device_train_batch_size 1 \
+  --gradient_accumulation_steps 16 \
+  --max_steps 1000 \
+  --report_to tensorboard

@@ -1,4 +1,3 @@
-import json
 import os
 from typing import List
 
@@ -9,19 +8,14 @@ from datasets import load_dataset
 from peft import (
     get_peft_model,
     LoraConfig,
-    PrefixTuningConfig,
     prepare_model_for_kbit_training,
     set_peft_model_state_dict,
-    TaskType,
 )
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
 )
-from transformers.utils import quantization_config
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def train(
@@ -29,6 +23,7 @@ def train(
         model_name: str = "",
         data_path: str = "",
         output_dir: str = "./output",
+        logging_dir: str = "./logs",
         load_4bit: bool = False,
         resume_from_checkpoint: str = None,  # either training checkpoint or final adapter
         save_step: int = 200,
@@ -36,28 +31,22 @@ def train(
         batch_size: int = 128,
         micro_batch_size: int = 4,
         num_epochs: int = 3,
+        max_steps: int = 80,
         learning_rate: float = 3e-4,
+        report: List[str] = None,
         # adapter
-        adapter_name: str = None,  # options: lora | prefix
+        use_lora: bool = True,
         # lora params
         lora_r: int = 32,
         lora_alpha: int = 16,
         lora_dropout: float = 0.05,
         lora_target_modules: List[str] = None,
-        # prefix tuning
-        num_virtual_tokens: int = 32
 ):
     if lora_target_modules is None:
         lora_target_modules = ["query_key_value"]
     # 梯度累积，减少显存使用
     gradient_accumulation_steps = batch_size // micro_batch_size
-    device_map = {"": 0}
-    # 多显卡配置
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    ddp = world_size != 1
-    if ddp:
-        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
-        gradient_accumulation_steps = gradient_accumulation_steps // world_size
+    device_map = "auto"
 
     # 4bit配置
     if load_4bit:
@@ -84,7 +73,7 @@ def train(
     model.gradient_checkpointing_enable()
     model = prepare_model_for_kbit_training(model)
     # adapter配置
-    if adapter_name == "lora":
+    if use_lora:
         adapter_config = LoraConfig(
             r=lora_r,
             lora_alpha=lora_alpha,
@@ -92,12 +81,6 @@ def train(
             lora_dropout=lora_dropout,
             bias="none",
             task_type="CAUSAL_LM"
-        )
-        model = get_peft_model(model, adapter_config)
-    elif adapter_name == "prefix":
-        adapter_config = PrefixTuningConfig(
-            task_type=TaskType.CAUSAL_LM,
-            num_virtual_tokens=num_virtual_tokens
         )
         model = get_peft_model(model, adapter_config)
     # 从检查点恢复
@@ -146,18 +129,19 @@ def train(
 
     def generate_prompt(data_point):
         return f"""
-What is the sentiment of this news?
-<news>: {data_point["news_title"]}
-<sentiment>: {data_point["emotion"]} <EOS>
+<news>: {data_point['news_title']}
+<sentiment>: {data_point['emotion']}
 """.strip()
-        # return f"""
-        # <human>: {data_point["question"]}
-        # <assistant>: {data_point["answer"]}
-        # """.strip()
 
     def generate_and_tokenize_prompt(data_point):
         full_prompt = generate_prompt(data_point)
-        tokenized_full_prompt = tokenizer(full_prompt, padding=True, truncation=True)
+        tokenized_full_prompt = tokenizer(
+            full_prompt,
+            padding=True,
+            truncation=True
+        )
+        tokenized_full_prompt["input_ids"].append(tokenizer.eos_token_id)
+        tokenized_full_prompt["attention_mask"].append(1)
         return tokenized_full_prompt
 
     data = load_dataset("json", data_files=data_path)
@@ -172,9 +156,11 @@ What is the sentiment of this news?
         fp16=True,
         logging_steps=save_step,
         output_dir=output_dir,
+        logging_dir=logging_dir,
         optim="paged_adamw_8bit",
         lr_scheduler_type="cosine",
         warmup_ratio=0.05,
+        report_to=report,
     )
     trainer = transformers.Trainer(
         model=model,

@@ -6,9 +6,6 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig, AutoTokenizer
 
 
-device = "cuda:0"
-
-
 def generate(
         # model params
         base_model: str = "",
@@ -16,11 +13,12 @@ def generate(
         load_4bit: bool = False,
 ):
     device_map = {"": 0}
-    # 多显卡配置
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    ddp = world_size != 1
-    if ddp:
-        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
+    # 使用deepspeed进行多显卡配置
+    # # 多显卡配置
+    # world_size = int(os.environ.get("WORLD_SIZE", 1))
+    # ddp = world_size != 1
+    # if ddp:
+    #     device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
 
     if load_4bit:
         bnb_config = BitsAndBytesConfig(
@@ -53,40 +51,32 @@ def generate(
 
     # 生成配置
     generation_config = model.generation_config
-    generation_config.max_new_tokens = 200
+    generation_config.max_new_tokens = 10
     generation_config.temperature = 1
     generation_config.top_p = 0.7
     generation_config.num_return_sequences = 1
-    generation_config.pad_token_id = 0
-    generation_config.eos_token_id = 0
+    generation_config.pad_token_id = tokenizer.eos_token_id
+    generation_config.eos_token_id = tokenizer.eos_token_id
 
     def generate_response(question: str) -> str:
-    #     prompt = f"""
-    # answer the question after <human>, as truthfully as possible, if you are not sure, please say "-2".
-    # <human>: {question}
-    # <assistant>:
-    # """.strip()
         prompt = f"""
-What is the sentiment after <news>?
 <news>: {question}
-<sentiment>:
+<sentiment>: 
 """.strip()
-        encoding = tokenizer(prompt, return_tensors="pt").to(device)
+        encoding = tokenizer(prompt, return_tensors="pt").to(device='cuda')
         with torch.inference_mode():
             outputs = model.generate(
                 input_ids=encoding.input_ids,
-                attention_mask=encoding.attention_mask,
                 generation_config=generation_config,
+                attention_mask=encoding.attention_mask,
             )
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        response = response.split("<EOS>")[0]
+        response = tokenizer.decode(outputs[0], skip_special_tokens=False)
         assistant_start = "<sentiment>:"
         response_start = response.find(assistant_start)
         return response[response_start + len(assistant_start):].strip()
 
     question = input('Input news. Input exit to exit:')
-    while question != 'e':
+    while question != 'exit':
         print(generate_response(question))
         question = input("Input news. Input exit to exit:")
 
